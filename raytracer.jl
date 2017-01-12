@@ -118,34 +118,53 @@ function imageFromPixelArray(pixels::Array{Vec3, 2})
 end
 
 #==============================================================
+Objects
+==============================================================#
+
+function hit_sphere(center::Vec3, radius::Float64, ray::Ray)::Bool
+  oc = subtract(ray.origin, center)
+  a = dot(ray.direction, ray.direction)
+  b = 2 * dot(oc, ray.direction)
+  c = dot(oc, oc) - radius * radius
+  discriminant = b*b - 4*a*c
+  return discriminant > 0
+end
+
+#==============================================================
 Rendering
 ==============================================================#
 
 function colorFromRay(ray::Ray)::Vec3
+  if hit_sphere(Vec3(0,0,-1), 0.5, ray)
+    return Vec3(1,0,0)
+  end
   unit_direction = unit_vector(ray.direction)
   t = 0.5 * (unit_direction.y + 1.0)
   return add(mul((1-t), Vec3(1,1,1)), mul(t, Vec3(0.5, 0.7, 1.0)))
 end
 
-#DEBUG ONLY CODE!
-width = 200
-height = 100
-pixelArray = fill(Vec3Zero(), width, height)
-lowerLeftCorner = Vec3(-2, -1, -1)
-horizontal = Vec3(4,0,0)
-vertical = Vec3(0,2,0)
-origin = Vec3(0,0,0)
+function main()
+  width = 200
+  height = 100
+  pixelArray = fill(Vec3Zero(), width, height)
+  lowerLeftCorner = Vec3(-2, -1, -1)
+  horizontal = Vec3(4,0,0)
+  vertical = Vec3(0,2,0)
+  origin = Vec3(0,0,0)
 
-for j = reverse(1:height), i = 1:width
-    u = Float64(i) / Float64(width)
-    v = Float64(j) / Float64(height)
+  for j = reverse(1:height), i = 1:width
+      u = Float64(i) / Float64(width)
+      v = Float64(j) / Float64(height)
 
-    ray = Ray(origin, add(add(lowerLeftCorner, mul(u, horizontal)), mul(v, vertical)))
-    color = colorFromRay(ray)
+      ray = Ray(origin, add(add(lowerLeftCorner, mul(u, horizontal)), mul(v, vertical)))
+      color = colorFromRay(ray)
 
-    pixelArray[i, j] = color
+      pixelArray[i, j] = color
+  end
+  print(imageFromPixelArray(pixelArray))
 end
-print(imageFromPixelArray(pixelArray))
+# @time main()
+main()
 exit(0)
 
 
