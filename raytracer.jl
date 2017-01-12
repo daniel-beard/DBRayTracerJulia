@@ -88,6 +88,19 @@ function unit_vector(a::Vec3)::Vec3
 end
 
 #==============================================================
+Rays
+==============================================================#
+
+type Ray
+  origin::Vec3
+  direction::Vec3
+end
+
+function pointAtParameter(ray::Ray, t::Float64)::Vec3
+  add(ray.origin, mul(direction, t))
+end
+
+#==============================================================
 Image output
 ==============================================================#
 
@@ -104,15 +117,33 @@ function imageFromPixelArray(pixels::Array{Vec3, 2})
   output
 end
 
+#==============================================================
+Rendering
+==============================================================#
+
+function colorFromRay(ray::Ray)::Vec3
+  unit_direction = unit_vector(ray.direction)
+  t = 0.5 * (unit_direction.y + 1.0)
+  return add(mul((1-t), Vec3(1,1,1)), mul(t, Vec3(0.5, 0.7, 1.0)))
+end
+
 #DEBUG ONLY CODE!
 width = 200
 height = 100
 pixelArray = fill(Vec3Zero(), width, height)
+lowerLeftCorner = Vec3(-2, -1, -1)
+horizontal = Vec3(4,0,0)
+vertical = Vec3(0,2,0)
+origin = Vec3(0,0,0)
+
 for j = reverse(1:height), i = 1:width
-    r = Float64(i) / Float64(width)
-    g = Float64(j) / Float64(height)
-    b = 0.2
-    pixelArray[i, j] = Vec3(r, g, b)
+    u = Float64(i) / Float64(width)
+    v = Float64(j) / Float64(height)
+
+    ray = Ray(origin, add(add(lowerLeftCorner, mul(u, horizontal)), mul(v, vertical)))
+    color = colorFromRay(ray)
+
+    pixelArray[i, j] = color
 end
 print(imageFromPixelArray(pixelArray))
 exit(0)
@@ -134,18 +165,7 @@ exit(0)
 
 
 
-#==============================================================
-Rays
-==============================================================#
 
-type Ray
-  origin::Vec3
-  direction::Vec3
-end
-
-function pointAtParameter(ray::Ray, t::Float64)::Vec3
-  add(ray.origin, mul(direction, t))
-end
 
 #==============================================================
 Geometry
