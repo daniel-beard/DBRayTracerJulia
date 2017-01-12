@@ -51,6 +51,10 @@ function add(a::Vec3, b::Vec3)::Vec3
   Vec3(a.x+b.x, a.y+b.y, a.z+b.z)
 end
 
+function add(a::Vec3, b::Float64)::Vec3
+  Vec3(a.x+b, a.y+b, a.z+b)
+end
+
 function subtract(a::Vec3, b::Vec3)::Vec3
   Vec3(a.x-b.x, a.y-b.y, a.z-b.z)
 end
@@ -97,7 +101,7 @@ type Ray
 end
 
 function pointAtParameter(ray::Ray, t::Float64)::Vec3
-  add(ray.origin, mul(direction, t))
+  add(ray.origin, mul(ray.direction, t))
 end
 
 #==============================================================
@@ -118,46 +122,108 @@ function imageFromPixelArray(pixels::Array{Vec3, 2})
 end
 
 #==============================================================
-Objects
+Geometry
 ==============================================================#
+type HitRecord
+  t::Float64
+  p::Vec3
+  normal::Vec3
+end
 
-function hit_sphere(center::Vec3, radius::Float64, ray::Ray)::Bool
-  oc = subtract(ray.origin, center)
-  a = dot(ray.direction, ray.direction)
-  b = 2 * dot(oc, ray.direction)
-  c = dot(oc, oc) - radius * radius
-  discriminant = b*b - 4*a*c
-  return discriminant > 0
+abstract Hitable
+
+type Sphere <: Hitable
+  center::Vec3
+  radius::Float64
+end
+
+# Specialized Sphere hitable
+# Returns result, hitRecord
+function hit(hitable::Sphere, ray::Ray, t_min::Float64, t_max::Float64, hitRecord)::Tuple{Bool, Any}
+  oc = subtract(ray.origin, hitable.center)         # Vec3
+  a = dot(ray.direction, ray.direction)             # Float64
+  b = dot(oc, ray.direction)                        # Float64
+  c = dot(oc, oc) - hitable.radius * hitable.radius # Float64
+  discriminant = b*b - a*c                          # Float64
+  if discriminant > 0
+    temp = (-b - sqrt(b*b-a*c)) / a
+    if temp < t_max && temp > t_min
+      t = temp
+      p = pointAtParameter(ray, t)
+      normal = div(subtract(p, hitable.center), hitable.radius)
+      # hitRecord.material = hitable.material
+      return (true, HitRecord(t, p, normal))
+    end
+
+    temp = (-b + sqrt(b*b-a*c)) / a
+    if temp < t_max && temp > t_min
+      t = temp
+      p = pointAtParameter(ray, t)
+      normal = div(subtract(p, hitable.center), hitable.radius)
+      # hitRecord.material = hitable.material
+      return (true, HitRecord(t, p, normal))
+    end
+  end
+  return (false, nothing)
+end
+
+type HitableList <: Hitable
+  list::Array{Hitable}
+end
+
+# Specialized hitable list hit function
+# Returns result, hitRecord
+function hit(hitable::HitableList, ray::Ray, t_min::Float64, t_max::Float64, hitRecord)::Tuple{Bool, Any}
+    hitAnything = false
+    closestSoFar = t_max
+    tempHitRecord = nothing
+    hitRecordResult = nothing
+    for element in hitable.list
+      result, tempHitRecord = hit(element, ray, t_min, closestSoFar, hitRecord)
+      if result
+        hitAnything = true
+        closestSoFar = tempHitRecord.t
+        hitRecordResult = tempHitRecord
+      end
+    end
+    return (hitAnything, hitRecordResult)
 end
 
 #==============================================================
 Rendering
 ==============================================================#
 
-function colorFromRay(ray::Ray)::Vec3
-  if hit_sphere(Vec3(0,0,-1), 0.5, ray)
-    return Vec3(1,0,0)
+function colorFromRay(ray::Ray, world::Hitable)::Vec3
+  hitRecord = nothing
+  result, hitRecord = hit(world, ray, 0.0, typemax(Float64), hitRecord)
+  if result
+    return mul(0.5, add(hitRecord.normal, 1.0))
+  else
+    unit_direction = unit_vector(ray.direction)
+    t = 0.5 * (unit_direction.y + 1)
+    return add(mul((1.0 - t), Vec3(1,1,1)), mul(t, Vec3(0.5, 0.7, 1.0)))
   end
-  unit_direction = unit_vector(ray.direction)
-  t = 0.5 * (unit_direction.y + 1.0)
-  return add(mul((1-t), Vec3(1,1,1)), mul(t, Vec3(0.5, 0.7, 1.0)))
 end
 
 function main()
-  width = 200
+    width = 200
   height = 100
   pixelArray = fill(Vec3Zero(), width, height)
   lowerLeftCorner = Vec3(-2, -1, -1)
   horizontal = Vec3(4,0,0)
   vertical = Vec3(0,2,0)
   origin = Vec3(0,0,0)
+  world = HitableList([
+    Sphere(Vec3(0,0,-1), 0.5),
+    Sphere(Vec3(0,-100.5, -1), 100)
+  ])
 
   for j = reverse(1:height), i = 1:width
       u = Float64(i) / Float64(width)
       v = Float64(j) / Float64(height)
 
       ray = Ray(origin, add(add(lowerLeftCorner, mul(u, horizontal)), mul(v, vertical)))
-      color = colorFromRay(ray)
+      color = colorFromRay(ray, world)
 
       pixelArray[i, j] = color
   end
@@ -186,66 +252,15 @@ exit(0)
 
 
 
-#==============================================================
-Geometry
-==============================================================#
-type HitRecord
-  t::Float64
-  p::Vec3
-  normal::Vec3
-  material::Nullable{Any}
 
-  HitRecord() = new(0.0, Vec3Zero(), Vec3Zero(), nothing)
-end
 
-abstract Hitable
 
-type Sphere <: Hitable
-  center::Vec3
-  radius::Float64
-  #TODO: Move the abstract Material decl above this
-  material::Any
-end
 
-function hit(hitable::Sphere, ray::Ray, t_min::Float64, t_max::Float64, hitRecord::HitRecord)::Tuple{Bool, Nullable{HitRecord}}
-  oc = subtract(origin(ray), hitable.center)    # Vec3
-  a = dot(direction(ray), direction(ray))       # Float64
-  b = dot(oc, direction(ray))                   # Float64
-  c = dot(oc, oc) - radius * radius             # Float64
-  discriminant = b*b - a*c                      # Float64
-  if discriminant > 0
-    temp = (-b - sqrt(b*b-a*c)) / a
-    if temp < t_max && temp > t_min
-      hitRecord.t = temp
-      hitRecord.p = pointAtParameter(ray, hitRecord.t)
-      hitRecord.normal = div(subtract(hitRecord.p, hitable.center), radius)
-      hitRecord.material = hitable.material
-      return (true, hitRecord)
-    end
 
-    temp = (-b + sqrt(b*b-a*c)) / a
-    if temp < t_max && temp > t_min
-      hitRecord.t = temp
-      hitRecord.p = pointAtParameter(ray, hitRecord.t)
-      hitRecord.normal = div(subtract(hitRecord.p, hitable.center), radius)
-      hitRecord.material = hitable.material
-      return (true, hitRecord)
-    end
-  end
-  return (false, nothing)
-end
 
-type HitableList
-  list::Array{Hitable}
-end
 
-function hit(hitable::Hitable, ray::Ray, t_min::Float64, t_max::Float64, hitRecord::HitRecord)::Tuple{Bool, Nullable{HitRecord}}
-    hitAnything = false
-    closestSoFar = t_max
-    tempHitRecord = nothing
 
-    #TODO!
-end
+
 
 #==============================================================
 Materials
