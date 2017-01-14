@@ -11,9 +11,7 @@ type Vec3
   z::Float64
 end
 
-function Vec3Zero()::Vec3
-  Vec3(0,0,0)
-end
+Vec3Zero()::Vec3 = Vec3(0,0,0)
 
 function float_eq(a::Float64, b::Float64)::Bool
   abs(a - b) < 0.0001
@@ -108,17 +106,18 @@ end
 Image output
 ==============================================================#
 
-function imageFromPixelArray(pixels::Array{Vec3, 2})
-  width = size(pixels, 1)
-  height = size(pixels, 2)
-  output = "P3\n$width $height\n255\n"
-  for y = reverse(1:height), x = 1:width
-      ir = convert(Int64, round(255 * pixels[x, y].x))
-      ig = convert(Int64, round(255 * pixels[x, y].y))
-      ib = convert(Int64, round(255 * pixels[x, y].z))
-      output = "$output$ir $ig $ib\n"
+function writePixelArrayToFile(pixels::Array{Vec3, 2})
+  open("output.ppm", "w") do f
+    width = size(pixels, 1)
+    height = size(pixels, 2)
+    write(f, "P3\n$width $height\n255\n")
+    for y = reverse(1:height), x = 1:width
+        ir = convert(Int64, round(255 * pixels[x, y].x))
+        ig = convert(Int64, round(255 * pixels[x, y].y))
+        ib = convert(Int64, round(255 * pixels[x, y].z))
+        write(f, "$ir $ig $ib\n")
+    end
   end
-  output
 end
 
 #==============================================================
@@ -227,10 +226,9 @@ function main()
 
       pixelArray[i, j] = color
   end
-  print(imageFromPixelArray(pixelArray))
+  writePixelArrayToFile(pixelArray)
 end
-# @time main()
-main()
+@time main()
 exit(0)
 
 
