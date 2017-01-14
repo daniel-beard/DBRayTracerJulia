@@ -189,6 +189,29 @@ function hit(hitable::HitableList, ray::Ray, t_min::Float64, t_max::Float64, hit
 end
 
 #==============================================================
+Camera
+==============================================================#
+
+type Camera
+  lowerLeftCorner::Vec3
+  horizontal::Vec3
+  vertical::Vec3
+  origin::Vec3
+
+  Camera() = new(
+    Vec3(-2.0, -1.0, -1.0),
+    Vec3(4.0, 0.0, 0.0),
+    Vec3(0.0, 2.0, 0.0),
+    Vec3(0.0, 0.0, 0.0)
+  )
+end
+
+function getRay(camera::Camera, u::Float64, v::Float64)::Ray
+  direction = subtract(add(add(camera.lowerLeftCorner, mul(u, camera.horizontal)), mul(v, camera.vertical)), camera.origin)
+  Ray(camera.origin, direction)
+end
+
+#==============================================================
 Rendering
 ==============================================================#
 
@@ -205,8 +228,13 @@ function colorFromRay(ray::Ray, world::Hitable)::Vec3
 end
 
 function main()
-    width = 200
+
+  # Seed random generator
+  srand(0)
+
+  width = 200
   height = 100
+  samples = 100
   pixelArray = fill(Vec3Zero(), width, height)
   lowerLeftCorner = Vec3(-2, -1, -1)
   horizontal = Vec3(4,0,0)
@@ -216,15 +244,18 @@ function main()
     Sphere(Vec3(0,0,-1), 0.5),
     Sphere(Vec3(0,-100.5, -1), 100)
   ])
+  camera = Camera()
 
   for j = reverse(1:height), i = 1:width
-      u = Float64(i) / Float64(width)
-      v = Float64(j) / Float64(height)
-
-      ray = Ray(origin, add(add(lowerLeftCorner, mul(u, horizontal)), mul(v, vertical)))
-      color = colorFromRay(ray, world)
-
-      pixelArray[i, j] = color
+    color = Vec3Zero()
+    for sample = 1:samples
+      u = Float64(i + rand()) / Float64(width)
+      v = Float64(j + rand()) / Float64(height)
+      ray = getRay(camera, u, v)
+      color = add(color, colorFromRay(ray, world))
+    end
+    color = div(color, Float64(samples))
+    pixelArray[i, j] = color
   end
   writePixelArrayToFile(pixelArray)
 end
