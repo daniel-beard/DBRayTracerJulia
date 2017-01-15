@@ -5,7 +5,7 @@
 Vectors
 ==============================================================#
 
-type Vec3
+immutable Vec3
   x::Float64
   y::Float64
   z::Float64
@@ -94,7 +94,7 @@ end
 Rays
 ==============================================================#
 
-type Ray
+immutable Ray
   origin::Vec3
   direction::Vec3
 end
@@ -160,7 +160,7 @@ end
 #==============================================================
 Hitable & HitRecord
 ==============================================================#
-type HitRecord
+immutable HitRecord
   t::Float64
   p::Vec3
   normal::Vec3
@@ -172,17 +172,17 @@ abstract Hitable
 Materials
 ==============================================================#
 abstract Material
-type Lambertian <: Material
+immutable Lambertian <: Material
   albedo::Vec3
 end
 
-type Metal <: Material
+immutable Metal <: Material
   albedo::Vec3
   fuzz::Float64
   Metal(albedo::Vec3, fuzz::Float64) = new(albedo, fuzz < 1 ? fuzz : 1)
 end
 
-type Dialetric <: Material
+immutable Dialetric <: Material
   reflectiveIndex::Float64
 end
 
@@ -239,7 +239,7 @@ end
 #==============================================================
 Geometry
 ==============================================================#
-type Sphere <: Hitable
+immutable Sphere <: Hitable
   center::Vec3
   radius::Float64
   material::Material
@@ -273,7 +273,7 @@ function hit(hitable::Sphere, ray::Ray, t_min::Float64, t_max::Float64, hitRecor
   return (false, nothing)
 end
 
-type HitableList <: Hitable
+immutable HitableList <: Hitable
   list::Array{Hitable}
 end
 
@@ -401,15 +401,6 @@ exit(0)
 
 
 
-
-
-
-
-
-
-#==============================================================
-Materials
-==============================================================#
 
 
 
