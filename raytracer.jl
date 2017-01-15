@@ -119,6 +119,26 @@ function reflect(v::Vec3, n::Vec3)::Vec3
   subtract(v, mul(2.0*dot(v, n),n))
 end
 
+# This function either returns true and a refracted vector
+# or false and Vec3Zero
+function refract(v::Vec3, n::Vec3, ni_over_nt::Float64)::Tuple{Bool, Vec3}
+  uv = unit_vector(v)
+  dt = dot(uv, n)
+  discriminant = 1.0 - ni_over_nt * ni_over_nt * (1.0 - dt * dt)
+  if discriminant > 0
+    refracted = subtract(mul(ni_over_nt, subtract(uv, mul(n, dt))), mul(n, sqrt(discriminant)))
+    return (true, refracted)
+  end
+  return (false, Vec3Zero())
+end
+
+# Polynomial approximation
+function schlick(cosine::Float64, reflectiveIndex::Float64)::Float64
+  r = (1-reflectiveIndex) / (1+reflectiveIndex)
+  r = r*r
+  r+(1-r)*(1-cosine)^5
+end
+
 #==============================================================
 Image output
 ==============================================================#
@@ -179,6 +199,41 @@ function scatter(material::Metal, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, V
   attenuation = material.albedo
   result = dot(scattered.direction, hitRecord.normal) > 0
   return (result, attenuation, scattered)
+end
+
+function scatter(material::Dialetric, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
+  outwardNormal = Vec3Zero()
+  ni_over_nt = Float64(0)
+  reflected = reflect(ray.direction, hitRecord.normal)
+  attenuation = Vec3(1,1,1)
+  refracted = Vec3Zero()
+  reflectProb = Float64(0)
+  cosine = Float64(0)
+  scattered = Ray(Vec3Zero(), Vec3Zero())
+
+  if dot(ray.direction, hitRecord.normal) > 0
+    outwardNormal = negate(hitRecord.normal)
+    ni_over_nt = material.reflectiveIndex
+    cosine = material.reflectiveIndex * dot(ray.direction, hitRecord.normal) / length(ray.direction)
+  else
+    outwardNormal = hitRecord.normal
+    ni_over_nt = 1.0 / material.reflectiveIndex
+    cosine = -dot(ray.direction, hitRecord.normal) / length(ray.direction)
+  end
+
+  result, refracted = refract(ray.direction, outwardNormal, ni_over_nt)
+  if result
+    reflectProb = schlick(cosine, material.reflectiveIndex)
+  else
+    reflectProb = 1
+  end
+
+  if rand() < reflectProb
+    scattered = Ray(hitRecord.p, reflected)
+  else
+    scattered = Ray(hitRecord.p, refracted)
+  end
+  return (true, attenuation, scattered)
 end
 
 #==============================================================
@@ -298,10 +353,11 @@ function main()
   vertical = Vec3(0,2,0)
   origin = Vec3(0,0,0)
   world = HitableList([
-    Sphere(Vec3(0,0,-1), 0.5, Lambertian(Vec3(0.8,0.3,0.3))),
+    Sphere(Vec3(0,0,-1), 0.5, Lambertian(Vec3(0.1,0.2,0.5))),
     Sphere(Vec3(0,-100.5, -1), 100, Lambertian(Vec3(0.8,0.8,0.0))),
-    Sphere(Vec3(1.0, 0.0, -1.0), 0.5, Metal(Vec3(0.8,0.6,0.2), 1.0)),
-    Sphere(Vec3(-1.0, 0.0, -1.0), 0.5, Metal(Vec3(0.8,0.8,0.8), 0.3))
+    Sphere(Vec3(1.0, 0.0, -1.0), 0.5, Metal(Vec3(0.8,0.6,0.2), 0.3)),
+    Sphere(Vec3(-1.0, 0.0, -1.0), 0.5, Dialetric(1.5)),
+    Sphere(Vec3(-1.0, 0.0, -1.0), -0.45, Dialetric(1.5))
   ])
   camera = Camera()
 
@@ -359,40 +415,7 @@ Materials
 
 
 
-function scatter(material::Dialetric, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
-  outwardNormal = Vec3Zero()
-  ni_over_nt = Float64(0)
-  reflected = reflect(ray.direction, hitRecord.normal)
-  attenuation = Vec3(1,1,1)
-  refracted = Vec3Zero()
-  reflectProb = Float64(0)
-  cosine = Float64(0)
-  scattered = Ray(Vec3Zero(), Vec3Zero())
 
-  if direction(dot(ray, hitRecord.normal)) > 0
-    outwardNormal = negate(hitRecord.normal)
-    ni_over_nt = material.reflectiveIndex
-    cosine = div(mul(material.reflectiveIndex, dot(direction(ray), hitRecord.normal)), length(direction(ray)))
-  else
-    outwardNormal = hitRecord.normal
-    ni_over_nt = 1.0 / reflectiveIndex
-    cosine = div(negate(dot(direction(ray), hitRecord.normal)), length(direction(ray)))
-  end
-
-  result, refracted = refract(direction(ray), outwardNormal, ni_over_nt)
-  if result
-    reflectProb = schlick(cosine, reflectiveIndex)
-  else
-    reflectProb = 1
-  end
-
-  if rand() < reflectProb
-    scattered = Ray(hitRecord.p, reflected)
-  else
-    scattered = Ray(hitRecord.p, refracted)
-  end
-  return (true, attenuation, scattered)
-end
 
 #==============================================================
 Main raytracing code
@@ -406,23 +429,4 @@ function randomInUnitDisk()::Vec3
     p = subtract(mul(2, Vec3(rand(), rand(), 0)), Vec3(1,1,0))
   end
   p
-end
-
-# This function either returns true and a refracted vector
-# or false and Vec3Zero
-function refract(v::Vec3, n::Vec3, ni_over_nt::Float64)::Tuple{Bool, Vec3}
-  uv = unit_vector(v)
-  dt = dot(uv, n)
-  discriminant = subtract(1.0, mul(ni_over_nt ^ 2, subtract(1, mul(dt, dt))))
-  if discriminant > 0
-    refracted = sub(mul(ni_over_nt, subtract(uv, mul(n, dt))), mul(n, sqrt(discriminant)))
-    return (true, refracted)
-  end
-  return (false, Vec3Zero())
-end
-
-function schlick(cosine::Float64, reflectiveIndex::Float64)::Float64
-  r = (1-reflectiveIndex) * (1+reflectiveIndex)
-  r = r*r
-  r+(1-r)*(1-cosine)^5
 end
