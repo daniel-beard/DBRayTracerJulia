@@ -104,6 +104,22 @@ function pointAtParameter(ray::Ray, t::Float64)::Vec3
 end
 
 #==============================================================
+Utils
+==============================================================#
+
+function randomInUnitSphere()::Vec3
+  p = Vec3(typemax(Float64), typemax(Float64), typemax(Float64))
+  while lengthSquared(p) >= 1
+    p = subtract(mul(2.0, Vec3(rand(), rand(), rand())), Vec3(1,1,1))
+  end
+  p
+end
+
+function reflect(v::Vec3, n::Vec3)::Vec3
+  subtract(v, mul(2.0*dot(v, n),n))
+end
+
+#==============================================================
 Image output
 ==============================================================#
 
@@ -122,19 +138,56 @@ function writePixelArrayToFile(pixels::Array{Vec3, 2})
 end
 
 #==============================================================
-Geometry
+Hitable & HitRecord
 ==============================================================#
 type HitRecord
   t::Float64
   p::Vec3
   normal::Vec3
+  material::Any
 end
-
 abstract Hitable
 
+#==============================================================
+Materials
+==============================================================#
+abstract Material
+type Lambertian <: Material
+  albedo::Vec3
+end
+
+type Metal <: Material
+  albedo::Vec3
+  fuzz::Float64
+  Metal(albedo::Vec3, fuzz::Float64) = new(albedo, fuzz < 1 ? fuzz : 1)
+end
+
+type Dialetric <: Material
+  reflectiveIndex::Float64
+end
+
+function scatter(material::Lambertian, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
+  target = add(add(hitRecord.p, hitRecord.normal), randomInUnitSphere())
+  attenuation = material.albedo
+  scattered = Ray(hitRecord.p, subtract(target, hitRecord.p))
+  return (true, attenuation, scattered)
+end
+
+function scatter(material::Metal, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
+  reflected = reflect(unit_vector(ray.direction), hitRecord.normal)
+  scattered = Ray(hitRecord.p, add(reflected, mul(material.fuzz, randomInUnitSphere())))
+  attenuation = material.albedo
+  result = dot(scattered.direction, hitRecord.normal) > 0
+  return (result, attenuation, scattered)
+end
+
+#==============================================================
+Geometry
+==============================================================#
 type Sphere <: Hitable
   center::Vec3
   radius::Float64
+  material::Material
 end
 
 # Specialized Sphere hitable
@@ -151,8 +204,7 @@ function hit(hitable::Sphere, ray::Ray, t_min::Float64, t_max::Float64, hitRecor
       t = temp
       p = pointAtParameter(ray, t)
       normal = div(subtract(p, hitable.center), hitable.radius)
-      # hitRecord.material = hitable.material
-      return (true, HitRecord(t, p, normal))
+      return (true, HitRecord(t, p, normal, hitable.material))
     end
 
     temp = (-b + sqrt(b*b-a*c)) / a
@@ -160,8 +212,7 @@ function hit(hitable::Sphere, ray::Ray, t_min::Float64, t_max::Float64, hitRecor
       t = temp
       p = pointAtParameter(ray, t)
       normal = div(subtract(p, hitable.center), hitable.radius)
-      # hitRecord.material = hitable.material
-      return (true, HitRecord(t, p, normal))
+      return (true, HitRecord(t, p, normal, hitable.material))
     end
   end
   return (false, nothing)
@@ -213,27 +264,19 @@ function getRay(camera::Camera, u::Float64, v::Float64)::Ray
 end
 
 #==============================================================
-Utils
-==============================================================#
-
-function randomInUnitSphere()::Vec3
-  p = Vec3(typemax(Float64), typemax(Float64), typemax(Float64))
-  while lengthSquared(p) >= 1
-    p = subtract(mul(2.0, Vec3(rand(), rand(), rand())), Vec3(1,1,1))
-  end
-  p
-end
-
-#==============================================================
 Rendering
 ==============================================================#
 
-function colorFromRay(ray::Ray, world::Hitable)::Vec3
+function colorFromRay(ray::Ray, world::Hitable, depth::Float64)::Vec3
   hitRecord = nothing
   result, hitRecord = hit(world, ray, 0.001, typemax(Float64), hitRecord)
   if result
-    target = add(add(hitRecord.p, hitRecord.normal), randomInUnitSphere())
-    return mul(0.5, colorFromRay(Ray(hitRecord.p, subtract(target, hitRecord.p)), world))
+    scatterResult, attenuation, scattered = scatter(hitRecord.material, ray, hitRecord)
+    if depth < 50 && scatterResult
+      return mul(attenuation, colorFromRay(scattered, world, depth+1))
+    else
+      return Vec3Zero()
+    end
   else
     unit_direction = unit_vector(ray.direction)
     t = 0.5 * (unit_direction.y + 1)
@@ -255,8 +298,10 @@ function main()
   vertical = Vec3(0,2,0)
   origin = Vec3(0,0,0)
   world = HitableList([
-    Sphere(Vec3(0,0,-1), 0.5),
-    Sphere(Vec3(0,-100.5, -1), 100)
+    Sphere(Vec3(0,0,-1), 0.5, Lambertian(Vec3(0.8,0.3,0.3))),
+    Sphere(Vec3(0,-100.5, -1), 100, Lambertian(Vec3(0.8,0.8,0.0))),
+    Sphere(Vec3(1.0, 0.0, -1.0), 0.5, Metal(Vec3(0.8,0.6,0.2), 1.0)),
+    Sphere(Vec3(-1.0, 0.0, -1.0), 0.5, Metal(Vec3(0.8,0.8,0.8), 0.3))
   ])
   camera = Camera()
 
@@ -266,7 +311,7 @@ function main()
       u = Float64(i + rand()) / Float64(width)
       v = Float64(j + rand()) / Float64(height)
       ray = getRay(camera, u, v)
-      color = add(color, colorFromRay(ray, world))
+      color = add(color, colorFromRay(ray, world, 0.0))
     end
     color = div(color, Float64(samples))
     color = vec_sqrt(color) # Gamma correction
@@ -309,37 +354,10 @@ exit(0)
 #==============================================================
 Materials
 ==============================================================#
-abstract Material
 
-type Lambertian <: Material
-  albedo::Vec3
-end
 
-type Metal <: Material
-  albedo::Vec3
-  fuzz::Float64
 
-  Metal(albedo::Vec3, fuzz::Float64) = new(albedo, fuzz < 1 ? fuzz : 1)
-end
 
-type Dialetric <: Material
-  reflectiveIndex::Float64
-end
-
-function scatter(material::Lambertian, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
-  target = add(add(hitRecord.p, hitRecord.normal), randomInUnitSphere())
-  attenuation = material.albedo
-  scattered = Ray(hitRecord.p, subtract(target, hitRecord.p))
-  return (true, attenuation, scattered)
-end
-
-function scatter(material::Metal, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
-  reflected = reflect(unit_vector(direction(ray)), hitRecord.normal)
-  scattered = Ray(hitRecord.p, add(reflected, mul(material.fuzz, randomInUnitSphere())))
-  attenuation = material.albedo
-  result = dot(direction(scattered), hitRecord.normal) > 0
-  return (result, attenuation, scattered)
-end
 
 function scatter(material::Dialetric, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
   outwardNormal = Vec3Zero()
@@ -390,10 +408,6 @@ function randomInUnitDisk()::Vec3
   p
 end
 
-function reflect(v::Vec3, n::Vec3)::Vec3
-  subtract(v, mul(mul(2, dot(v, n)),n))
-end
-
 # This function either returns true and a refracted vector
 # or false and Vec3Zero
 function refract(v::Vec3, n::Vec3, ni_over_nt::Float64)::Tuple{Bool, Vec3}
@@ -412,36 +426,3 @@ function schlick(cosine::Float64, reflectiveIndex::Float64)::Float64
   r = r*r
   r+(1-r)*(1-cosine)^5
 end
-
-function main()
-  width = 400
-  height = 200
-  samples = 100
-  FLOAT_MAX = typemax(Float64)
-  pixelArray = fill(Vec3Zero(), width, height)
-
-  # Seed random generator
-  srand(0)
-
-  #TODO: Implement me...
-end
-
-
-
-
-
-#==============================================================
-DEBUG & TEST CODE
-==============================================================#
-function calc1()
-  width = 10
-  height = 5
-  pixelArray = fill(Vec3(0,0,0), width, height)
-  pixelArray[10,1] = Vec3(1,1,1)
-  imageFromPixelArray(pixelArray) |> print
-end
-calc1()
-
-a = Metal(Vec3(0,0,0), 1.0)
-b = HitRecord(0.0, Vec3(0,0,0), Vec3(0,0,0 ), nothing)
-print(b)
