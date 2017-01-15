@@ -12,6 +12,7 @@ type Vec3
 end
 
 Vec3Zero()::Vec3 = Vec3(0,0,0)
+vec_sqrt(v::Vec3)::Vec3 = Vec3(sqrt(v.x), sqrt(v.y), sqrt(v.z))
 
 function float_eq(a::Float64, b::Float64)::Bool
   abs(a - b) < 0.0001
@@ -212,14 +213,27 @@ function getRay(camera::Camera, u::Float64, v::Float64)::Ray
 end
 
 #==============================================================
+Utils
+==============================================================#
+
+function randomInUnitSphere()::Vec3
+  p = Vec3(typemax(Float64), typemax(Float64), typemax(Float64))
+  while lengthSquared(p) >= 1
+    p = subtract(mul(2.0, Vec3(rand(), rand(), rand())), Vec3(1,1,1))
+  end
+  p
+end
+
+#==============================================================
 Rendering
 ==============================================================#
 
 function colorFromRay(ray::Ray, world::Hitable)::Vec3
   hitRecord = nothing
-  result, hitRecord = hit(world, ray, 0.0, typemax(Float64), hitRecord)
+  result, hitRecord = hit(world, ray, 0.001, typemax(Float64), hitRecord)
   if result
-    return mul(0.5, add(hitRecord.normal, 1.0))
+    target = add(add(hitRecord.p, hitRecord.normal), randomInUnitSphere())
+    return mul(0.5, colorFromRay(Ray(hitRecord.p, subtract(target, hitRecord.p)), world))
   else
     unit_direction = unit_vector(ray.direction)
     t = 0.5 * (unit_direction.y + 1)
@@ -255,6 +269,7 @@ function main()
       color = add(color, colorFromRay(ray, world))
     end
     color = div(color, Float64(samples))
+    color = vec_sqrt(color) # Gamma correction
     pixelArray[i, j] = color
   end
   writePixelArrayToFile(pixelArray)
@@ -365,13 +380,7 @@ end
 Main raytracing code
 ==============================================================#
 
-function randomInUnitSphere()::Vec3
-  p = Vec3(FLOAT_MAX, FLOAT_MAX, FLOAT_MAX)
-  while lengthSquared(p) >= 1
-    p = 2.0 * subtract(Vec3(rand(), rand(), rand()), Vec3(1,1,1))
-  end
-  p
-end
+
 
 function randomInUnitDisk()::Vec3
   p = Vec3(FLOAT_MAX, FLOAT_MAX, FLOAT_MAX)
