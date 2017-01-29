@@ -13,30 +13,23 @@ end
 
 Vec3Zero()::Vec3 = Vec3(0,0,0)
 vec_sqrt(v::Vec3)::Vec3 = Vec3(sqrt(v.x), sqrt(v.y), sqrt(v.z))
-
-function float_eq(a::Float64, b::Float64)::Bool
-  abs(a - b) < 0.0001
-end
-
-function vec_eq(a::Vec3, b::Vec3)::Bool
-  float_eq(a.x, b.x) && float_eq(a.y, b.y) && float_eq(a.z, b.z)
-end
-
-function dot(a::Vec3, b::Vec3)::Float64
-  a.x*b.x + a.y*b.y + a.z*b.z
-end
-
-function cross(a::Vec3, b::Vec3)::Vec3
-  return Vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, x*b.y-a.y*b.x)
-end
-
-function lengthSquared(a::Vec3)::Float64
-  a.x*a.x + a.y*a.y + a.z*a.z
-end
-
-function length(a::Vec3)::Float64
-  sqrt(lengthSquared(a))
-end
+float_eq(a::Float64, b::Float64)::Bool = abs(a - b) < 0.0001
+vec_eq(a::Vec3, b::Vec3)::Bool = float_eq(a.x, b.x) && float_eq(a.y, b.y) && float_eq(a.z, b.z)
+dot(a::Vec3, b::Vec3)::Float64 = a.x*b.x + a.y*b.y + a.z*b.z
+cross(a::Vec3, b::Vec3)::Vec3 = Vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, x*b.y-a.y*b.x)
+lengthSquared(a::Vec3)::Float64 = a.x*a.x + a.y*a.y + a.z*a.z
+length(a::Vec3)::Float64 = sqrt(lengthSquared(a))
+add(a::Vec3, b::Vec3)::Vec3 = Vec3(a.x+b.x, a.y+b.y, a.z+b.z)
+add(a::Vec3, b::Float64)::Vec3 = Vec3(a.x+b, a.y+b, a.z+b)
+subtract(a::Vec3, b::Vec3)::Vec3 = Vec3(a.x-b.x, a.y-b.y, a.z-b.z)
+mul(a::Vec3, b::Vec3)::Vec3 = Vec3(a.x*b.x, a.y*b.y, a.z*b.z)
+mul(a::Vec3, b::Float64)::Vec3 = Vec3(a.x*b, a.y*b, a.z*b)
+mul(a::Float64, b::Vec3)::Vec3 = Vec3(a*b.x, a*b.y, a*b.z)
+div(a::Vec3, b::Vec3)::Vec3 = Vec3(a.x/b.x, a.y/b.y, a.z/b.z)
+div(a::Vec3, b::Float64)::Vec3 = Vec3(a.x/b, a.y/b, a.z/b)
+eq(a::Vec3, b::Vec3)::Bool = a.x==b.x && a.y==b.x && a.z==b.z
+negate(a::Vec3)::Vec3 = Vec3(-a.x, -a.y, -a.z)
+unit_vector(a::Vec3)::Vec3 = div(a, length(a))
 
 function normalized(a::Vec3)::Vec3
   l_squared = lengthSquared(a)
@@ -46,62 +39,14 @@ function normalized(a::Vec3)::Vec3
   return div(a, sqrt(l_squared))
 end
 
-function add(a::Vec3, b::Vec3)::Vec3
-  Vec3(a.x+b.x, a.y+b.y, a.z+b.z)
-end
-
-function add(a::Vec3, b::Float64)::Vec3
-  Vec3(a.x+b, a.y+b, a.z+b)
-end
-
-function subtract(a::Vec3, b::Vec3)::Vec3
-  Vec3(a.x-b.x, a.y-b.y, a.z-b.z)
-end
-
-function mul(a::Vec3, b::Vec3)::Vec3
-  Vec3(a.x*b.x, a.y*b.y, a.z*b.z)
-end
-
-function mul(a::Vec3, b::Float64)::Vec3
-  Vec3(a.x*b, a.y*b, a.z*b)
-end
-
-function mul(a::Float64, b::Vec3)::Vec3
-  Vec3(a*b.x, a*b.y, a*b.z)
-end
-
-function div(a::Vec3, b::Vec3)::Vec3
-  Vec3(a.x/b.x, a.y/b.y, a.z/b.z)
-end
-
-function div(a::Vec3, b::Float64)::Vec3
-  Vec3(a.x/b, a.y/b, a.z/b)
-end
-
-function eq(a::Vec3, b::Vec3)::Bool
-  a.x==b.x && a.y==b.x && a.z==b.z
-end
-
-function negate(a::Vec3)::Vec3
-  Vec3(-a.x, -a.y, -a.z)
-end
-
-function unit_vector(a::Vec3)::Vec3
-  div(a, length(a))
-end
-
 #==============================================================
 Rays
 ==============================================================#
-
 immutable Ray
   origin::Vec3
   direction::Vec3
 end
-
-function pointAtParameter(ray::Ray, t::Float64)::Vec3
-  add(ray.origin, mul(ray.direction, t))
-end
+pointAtParameter(ray::Ray, t::Float64)::Vec3 = add(ray.origin, mul(ray.direction, t))
 
 #==============================================================
 Utils
@@ -111,8 +56,7 @@ function randomInUnitSphere()::Vec3
   p = Vec3(typemax(Float64), typemax(Float64), typemax(Float64))
   while lengthSquared(p) >= 1
     p = subtract(mul(2.0, Vec3(rand(), rand(), rand())), Vec3(1,1,1))
-  end
-  p
+  end; p
 end
 
 function reflect(v::Vec3, n::Vec3)::Vec3
@@ -134,8 +78,7 @@ end
 
 # Polynomial approximation
 function schlick(cosine::Float64, reflectiveIndex::Float64)::Float64
-  r = (1-reflectiveIndex) / (1+reflectiveIndex)
-  r = r*r
+  r = ((1-reflectiveIndex) / (1+reflectiveIndex))^2
   r+(1-r)*(1-cosine)^5
 end
 
@@ -202,13 +145,10 @@ function scatter(material::Metal, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, V
 end
 
 function scatter(material::Dialetric, ray::Ray, hitRecord::HitRecord)::Tuple{Bool, Vec3, Ray}
-  outwardNormal = Vec3Zero()
-  ni_over_nt = Float64(0)
+  ni_over_nt, reflectProb, cosine = 0.0, 0.0, 0.0
+  outwardNormal, refracted = Vec3Zero(), Vec3Zero()
   reflected = reflect(ray.direction, hitRecord.normal)
   attenuation = Vec3(1,1,1)
-  refracted = Vec3Zero()
-  reflectProb = Float64(0)
-  cosine = Float64(0)
   scattered = Ray(Vec3Zero(), Vec3Zero())
 
   if dot(ray.direction, hitRecord.normal) > 0
@@ -220,19 +160,9 @@ function scatter(material::Dialetric, ray::Ray, hitRecord::HitRecord)::Tuple{Boo
     ni_over_nt = 1.0 / material.reflectiveIndex
     cosine = -dot(ray.direction, hitRecord.normal) / length(ray.direction)
   end
-
   result, refracted = refract(ray.direction, outwardNormal, ni_over_nt)
-  if result
-    reflectProb = schlick(cosine, material.reflectiveIndex)
-  else
-    reflectProb = 1
-  end
-
-  if rand() < reflectProb
-    scattered = Ray(hitRecord.p, reflected)
-  else
-    scattered = Ray(hitRecord.p, refracted)
-  end
+  reflectProb = result ? schlick(cosine, material.reflectiveIndex) : 1
+  scattered = (rand() < reflectProb) ? Ray(hitRecord.p, reflected) : Ray(hitRecord.p, refracted)
   return (true, attenuation, scattered)
 end
 
@@ -282,8 +212,7 @@ end
 function hit(hitable::HitableList, ray::Ray, t_min::Float64, t_max::Float64, hitRecord)::Tuple{Bool, Any}
     hitAnything = false
     closestSoFar = t_max
-    tempHitRecord = nothing
-    hitRecordResult = nothing
+    tempHitRecord, hitRecordResult = nothing, nothing
     for element in hitable.list
       result, tempHitRecord = hit(element, ray, t_min, closestSoFar, hitRecord)
       if result
