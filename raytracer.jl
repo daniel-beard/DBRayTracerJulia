@@ -228,7 +228,6 @@ end
 Camera
 ==============================================================#
 
-
 type Camera
   origin::Vec3
   lowerLeftCorner::Vec3
@@ -240,7 +239,7 @@ type Camera
   lensRadius::Float64
 
   Camera(lookFrom::Vec3, lookAt::Vec3, viewUp::Vec3, verticalFOV::Float64, aspect::Float64, aperture::Float64, focusDistance::Float64) = new(
-    origin, 
+    origin,
     lowerLeftCorner,
     horizontal,
     vertical,
@@ -253,9 +252,7 @@ end
 # Helper methods for Camera constructor
 halfHeight(vfov::Float64)::Float64 = tan((vfov*pi/180)/2)
 halfWidth(aspect::Float64, half_height::Float64)::Float64 = aspect * half_height
-
 function _Camera(lookFrom::Vec3, lookAt::Vec3, vup::Vec3, vfov::Float64, aspect::Float64, aperture::Float64, focusDistance::Float64)
-
     lensRadius = aperture / 2
     half_height = halfHeight(vfov)
     half_width = halfWidth(aspect, half_height)
@@ -263,15 +260,13 @@ function _Camera(lookFrom::Vec3, lookAt::Vec3, vup::Vec3, vfov::Float64, aspect:
     w = unit_vector(subtract(lookFrom, lookAt))
     u = unit_vector(cross(vup, w))
     v = cross(w, u)
-
     a = mul((half_width*focusDistance), u)
     b = mul((half_height*focusDistance), v)
     c = mul(focusDistance, w)
     lowerLeftCorner = subtract(subtract(subtract(origin, a), b), c)
     horizontal = mul(2.0,mul(half_width,mul(focusDistance,u)))
     vertical = mul(2.0,mul(half_height,mul(focusDistance, v)))
-
-    origin, lowerLeftCorner, horizontal, vertical, u, v, w, lensRadius
+    return origin, lowerLeftCorner, horizontal, vertical, u, v, w, lensRadius
 end
 
 function randomInUnitDisk()::Vec3
@@ -310,6 +305,34 @@ function colorFromRay(ray::Ray, world::Hitable, depth::Float64)::Vec3
   end
 end
 
+function scene()::HitableList
+  list = Array{Hitable,1}()
+  push!(list, Sphere(Vec3(0,-1000,0), 1000, Lambertian(Vec3(0.5, 0.5, 0.5))))
+
+  for a in -11:10
+    for b in -11:10
+      chooseMat = rand()
+      center = Vec3(Float64(a)+0.9*rand(), 0.2, Float64(b)+0.9*rand())
+      if length(subtract(center, Vec3(4,0.2,0))) > 0.9
+        # diffuse
+        if chooseMat < 0.8
+          push!(list, Sphere(center, 0.2, Lambertian(Vec3(rand()*rand(), rand()*rand(), rand()*rand()))))
+        # metal
+        elseif chooseMat < 0.95
+            push!(list, Sphere(center, 0.2, Metal(Vec3(0.5*(1+rand()), 0.5*(1+rand()), 0.5*(1+rand())), 0.5*rand())))
+        # glass
+        else
+          push!(list, Sphere(center, 0.2, Dialetric(1.5)))
+        end
+      end
+    end
+  end
+  push!(list, Sphere(Vec3(0,1,0), 1.0, Dialetric(1.5)))
+  push!(list, Sphere(Vec3(-4,1,0), 1.0, Lambertian(Vec3(0.4,0.2,0.1))))
+  push!(list, Sphere(Vec3(4,1,0), 1.0, Metal(Vec3(0.7,0.6,0.5),0.0)))
+  HitableList(list)
+end
+
 function main()
 
   # Seed random generator
@@ -319,21 +342,12 @@ function main()
   height = 100
   samples = 100
   pixelArray = fill(Vec3Zero(), width, height)
-  lowerLeftCorner = Vec3(-2, -1, -1)
-  horizontal = Vec3(4,0,0)
-  vertical = Vec3(0,2,0)
-  origin = Vec3(0,0,0)
+  world = scene()
 
-  R = Float64(cos(pi/4))
-  world = HitableList([
-    Sphere(Vec3(-R,0,-1), R, Lambertian(Vec3(0.0,0.0,1.0))),
-    Sphere(Vec3(R,0, -1), R, Lambertian(Vec3(1.0,0.0,0.0)))
-  ])
-
-  lookFrom = Vec3(3,3,2)
-  lookAt = Vec3(0,0,-1)
-  distToFocus = Float64(length(subtract(lookFrom, lookAt)))
-  aperture = Float64(2)
+  lookFrom = Vec3(13,2,3)
+  lookAt = Vec3(0,0,0)
+  distToFocus = Float64(10)
+  aperture = Float64(0.1)
   camera = Camera(_Camera(lookFrom, lookAt, Vec3(0,1,0), Float64(20), Float64(width) / Float64(height), aperture, distToFocus))
 
   for j = reverse(1:height), i = 1:width
@@ -351,41 +365,3 @@ function main()
   writePixelArrayToFile(pixelArray)
 end
 @time main()
-exit(0)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#==============================================================
-Main raytracing code
-==============================================================#
-
-
-
