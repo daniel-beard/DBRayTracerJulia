@@ -274,9 +274,19 @@ function _Camera(lookFrom::Vec3, lookAt::Vec3, vup::Vec3, vfov::Float64, aspect:
     origin, lowerLeftCorner, horizontal, vertical, u, v, w, lensRadius
 end
 
-function getRay(camera::Camera, u::Float64, v::Float64)::Ray
-  direction = subtract(add(add(camera.lowerLeftCorner, mul(u, camera.horizontal)), mul(v, camera.vertical)), camera.origin)
-  Ray(camera.origin, direction)
+function randomInUnitDisk()::Vec3
+  p = Vec3(typemax(Float64), typemax(Float64), typemax(Float64))
+  while dot(p, p) >= 1
+    p = subtract(mul(2.0, Vec3(rand(), rand(), 0)), Vec3(1,1,0))
+  end
+  p
+end
+
+function getRay(camera::Camera, s::Float64, t::Float64)::Ray
+  rd = mul(camera.lensRadius, randomInUnitDisk())
+  offset = mul(camera.u, rd.x * rd.y)
+  direction = subtract(subtract(add(add(camera.lowerLeftCorner, mul(s, camera.horizontal)), mul(t, camera.vertical)), camera.origin), offset)
+  Ray(add(camera.origin, offset), direction)
 end
 
 #==============================================================
@@ -379,10 +389,3 @@ Main raytracing code
 
 
 
-function randomInUnitDisk()::Vec3
-  p = Vec3(FLOAT_MAX, FLOAT_MAX, FLOAT_MAX)
-  while dot(p, p) >= 1
-    p = subtract(mul(2, Vec3(rand(), rand(), 0)), Vec3(1,1,0))
-  end
-  p
-end
