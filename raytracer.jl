@@ -16,7 +16,7 @@ vec_sqrt(v::Vec3)::Vec3 = Vec3(sqrt(v.x), sqrt(v.y), sqrt(v.z))
 float_eq(a::Float64, b::Float64)::Bool = abs(a - b) < 0.0001
 vec_eq(a::Vec3, b::Vec3)::Bool = float_eq(a.x, b.x) && float_eq(a.y, b.y) && float_eq(a.z, b.z)
 dot(a::Vec3, b::Vec3)::Float64 = a.x*b.x + a.y*b.y + a.z*b.z
-cross(a::Vec3, b::Vec3)::Vec3 = Vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, x*b.y-a.y*b.x)
+cross(a::Vec3, b::Vec3)::Vec3 = Vec3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x)
 lengthSquared(a::Vec3)::Float64 = a.x*a.x + a.y*a.y + a.z*a.z
 length(a::Vec3)::Float64 = sqrt(lengthSquared(a))
 add(a::Vec3, b::Vec3)::Vec3 = Vec3(a.x+b.x, a.y+b.y, a.z+b.z)
@@ -228,18 +228,50 @@ end
 Camera
 ==============================================================#
 
+
 type Camera
+  origin::Vec3
   lowerLeftCorner::Vec3
   horizontal::Vec3
   vertical::Vec3
-  origin::Vec3
+  u::Vec3
+  v::Vec3
+  w::Vec3
+  lensRadius::Float64
 
-  Camera() = new(
-    Vec3(-2.0, -1.0, -1.0),
-    Vec3(4.0, 0.0, 0.0),
-    Vec3(0.0, 2.0, 0.0),
-    Vec3(0.0, 0.0, 0.0)
-  )
+  Camera(lookFrom::Vec3, lookAt::Vec3, viewUp::Vec3, verticalFOV::Float64, aspect::Float64, aperture::Float64, focusDistance::Float64) = new(
+    origin, 
+    lowerLeftCorner,
+    horizontal,
+    vertical,
+    u, v, w, lensRadius)
+
+  # Convenience constructor that takes the tuple produced by _Camera method
+  Camera(t::Tuple{Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Vec3, Float64}) = new(t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8])
+end
+
+# Helper methods for Camera constructor
+halfHeight(vfov::Float64)::Float64 = tan((vfov*pi/180)/2)
+halfWidth(aspect::Float64, half_height::Float64)::Float64 = aspect * half_height
+
+function _Camera(lookFrom::Vec3, lookAt::Vec3, vup::Vec3, vfov::Float64, aspect::Float64, aperture::Float64, focusDistance::Float64)
+
+    lensRadius = aperture / 2
+    half_height = halfHeight(vfov)
+    half_width = halfWidth(aspect, half_height)
+    origin = lookFrom
+    w = unit_vector(subtract(lookFrom, lookAt))
+    u = unit_vector(cross(vup, w))
+    v = cross(w, u)
+
+    a = mul((half_width*focusDistance), u)
+    b = mul((half_height*focusDistance), v)
+    c = mul(focusDistance, w)
+    lowerLeftCorner = subtract(subtract(subtract(origin, a), b), c)
+    horizontal = mul(2.0,mul(half_width,mul(focusDistance,u)))
+    vertical = mul(2.0,mul(half_height,mul(focusDistance, v)))
+
+    origin, lowerLeftCorner, horizontal, vertical, u, v, w, lensRadius
 end
 
 function getRay(camera::Camera, u::Float64, v::Float64)::Ray
@@ -281,14 +313,18 @@ function main()
   horizontal = Vec3(4,0,0)
   vertical = Vec3(0,2,0)
   origin = Vec3(0,0,0)
+
+  R = Float64(cos(pi/4))
   world = HitableList([
-    Sphere(Vec3(0,0,-1), 0.5, Lambertian(Vec3(0.1,0.2,0.5))),
-    Sphere(Vec3(0,-100.5, -1), 100, Lambertian(Vec3(0.8,0.8,0.0))),
-    Sphere(Vec3(1.0, 0.0, -1.0), 0.5, Metal(Vec3(0.8,0.6,0.2), 0.3)),
-    Sphere(Vec3(-1.0, 0.0, -1.0), 0.5, Dialetric(1.5)),
-    Sphere(Vec3(-1.0, 0.0, -1.0), -0.45, Dialetric(1.5))
+    Sphere(Vec3(-R,0,-1), R, Lambertian(Vec3(0.0,0.0,1.0))),
+    Sphere(Vec3(R,0, -1), R, Lambertian(Vec3(1.0,0.0,0.0)))
   ])
-  camera = Camera()
+
+  lookFrom = Vec3(3,3,2)
+  lookAt = Vec3(0,0,-1)
+  distToFocus = Float64(length(subtract(lookFrom, lookAt)))
+  aperture = Float64(2)
+  camera = Camera(_Camera(lookFrom, lookAt, Vec3(0,1,0), Float64(20), Float64(width) / Float64(height), aperture, distToFocus))
 
   for j = reverse(1:height), i = 1:width
     color = Vec3Zero()
