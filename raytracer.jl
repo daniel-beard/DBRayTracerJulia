@@ -1,11 +1,13 @@
 
 #= Raytracer in Julia =#
 
+using Random
+
 #==============================================================
 Vectors
 ==============================================================#
 
-immutable Vec3
+struct Vec3
   x::Float64
   y::Float64
   z::Float64
@@ -42,7 +44,7 @@ end
 #==============================================================
 Rays
 ==============================================================#
-immutable Ray
+struct Ray
   origin::Vec3
   direction::Vec3
 end
@@ -103,29 +105,29 @@ end
 #==============================================================
 Hitable & HitRecord
 ==============================================================#
-immutable HitRecord
+struct HitRecord
   t::Float64
   p::Vec3
   normal::Vec3
   material::Any
 end
-abstract Hitable
+abstract type Hitable end
 
 #==============================================================
 Materials
 ==============================================================#
-abstract Material
-immutable Lambertian <: Material
+abstract type Material end
+struct Lambertian <: Material
   albedo::Vec3
 end
 
-immutable Metal <: Material
+struct Metal <: Material
   albedo::Vec3
   fuzz::Float64
   Metal(albedo::Vec3, fuzz::Float64) = new(albedo, fuzz < 1 ? fuzz : 1)
 end
 
-immutable Dialetric <: Material
+struct Dialetric <: Material
   reflectiveIndex::Float64
 end
 
@@ -169,7 +171,7 @@ end
 #==============================================================
 Geometry
 ==============================================================#
-immutable Sphere <: Hitable
+struct Sphere <: Hitable
   center::Vec3
   radius::Float64
   material::Material
@@ -203,7 +205,7 @@ function hit(hitable::Sphere, ray::Ray, t_min::Float64, t_max::Float64, hitRecor
   return (false, nothing)
 end
 
-immutable HitableList <: Hitable
+struct HitableList <: Hitable
   list::Array{Hitable}
 end
 
@@ -228,7 +230,7 @@ end
 Camera
 ==============================================================#
 
-type Camera
+mutable struct Camera
   origin::Vec3
   lowerLeftCorner::Vec3
   horizontal::Vec3
@@ -336,7 +338,7 @@ end
 function main()
 
   # Seed random generator
-  srand(0)
+  Random.seed!(0)
 
   width = 200
   height = 100
