@@ -354,7 +354,7 @@ function main()
   aperture = Float64(0.1)
   camera = Camera(_Camera(lookFrom, lookAt, Vec3(0,1,0), Float64(20), Float64(width) / Float64(height), aperture, distToFocus))
 
-  for j = reverse(1:height)
+  Threads.@threads for j = reverse(1:height)
    for i = 1:width
     color = Vec3Zero()
     for sample = 1:samples
@@ -366,9 +366,6 @@ function main()
     color = div(color, Float64(samples))
     color = vec_sqrt(color) # Gamma correction
     pixelArray[i, j] = color
-   end
-   if j % 10 == 0
-    println("$((height-j)/height)%")
    end
   end
   writePixelArrayToFile(pixelArray)
