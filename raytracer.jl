@@ -2,6 +2,8 @@
 #= Raytracer in Julia =#
 
 using Random
+using SharedArrays
+using Distributed
 
 #==============================================================
 Vectors
@@ -340,9 +342,9 @@ function main()
   # Seed random generator
   Random.seed!(0)
 
-  width = 200
-  height = 100
-  samples = 100
+  width = 800
+  height = 600
+  samples = 50
   pixelArray = fill(Vec3Zero(), width, height)
   world = scene()
 
@@ -352,7 +354,8 @@ function main()
   aperture = Float64(0.1)
   camera = Camera(_Camera(lookFrom, lookAt, Vec3(0,1,0), Float64(20), Float64(width) / Float64(height), aperture, distToFocus))
 
-  for j = reverse(1:height), i = 1:width
+  for j = reverse(1:height)
+   for i = 1:width
     color = Vec3Zero()
     for sample = 1:samples
       u = Float64(i + rand()) / Float64(width)
@@ -363,6 +366,10 @@ function main()
     color = div(color, Float64(samples))
     color = vec_sqrt(color) # Gamma correction
     pixelArray[i, j] = color
+   end
+   if j % 10 == 0
+    println("$((height-j)/height)%")
+   end
   end
   writePixelArrayToFile(pixelArray)
 end
